@@ -5,9 +5,11 @@ class ElementWrapper {
     setAttribute(name, value) {
         this.root.setAttribute(name, value)
     }
+    // 把子节点挂载到当前的节点
     appendChild(vchild) {
         vchild.mountTo(this.root)
     }
+    // 所有的组件都会有 一个 mountTo
     mountTo(parent) {
         parent.appendChild(this.root)
     }
@@ -33,6 +35,7 @@ export class Component {
     setAttribute(name, value) {
         this[name] = value
     }
+    // 把 组件的 子节点收集起来，
     appendChild(vchild) {
         this.children.push(vchild)
     }
