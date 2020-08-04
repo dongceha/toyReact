@@ -1,7 +1,9 @@
+let childrenSymbol = Symbol('children')
 class ElementWrapper {
     constructor(type) {
         this.type = type
         this.props = Object.create(null)
+        this[childrenSymbol] = []
         this.children = []
         // this.root = document.createElement(type)
     }
@@ -16,6 +18,10 @@ class ElementWrapper {
         // }
         this.props[name] = value
     }
+    // 避免下面 diff 的过程中，get children 没有 range 属性
+    // get children() {
+    //     return this[childrenSymbol].map(child => child.vdom)
+    // }
     // 把子节点挂载到当前的节点
     appendChild(vchild) {
         // vchild.mountTo(this.root)
@@ -28,23 +34,25 @@ class ElementWrapper {
         //     range.setEnd(this.root, 0)
         // }
         // vchild.mountTo(range)
+        this[childrenSymbol].push(vchild)
         this.children.push(vchild)
     }
     get vdom() {
-        return {
-            type: this.type,
-            props: this.props,
-            children: this.children.map(child => child.vdom)
-        }
+        return this
     }
     // 所有的组件都会有 一个 mountTo
     mountTo(range) {
         this.range = range
+        let placeholder = document.createComment('placeholder')
+        let endRange = document.createRange()
+        endRange.setStart(range.endContainer, range.endOffset)
+        endRange.setEnd(range.endContainer, range.endOffset)
+        endRange.insertNode(placeholder)
+
         range.deleteContents()
         let element = document.createElement(this.type)
         for (let name in this.props) {
             let value = this.props[name]
-
             if (name.match(/^on([\s\S]+)$/)) {
                 let eventName = RegExp.$1.replace(/^[\s\S]/, (s) => s.toLowerCase())
                 element.addEventListener(eventName, value)
@@ -87,6 +95,9 @@ class TextWrapper {
         range.deleteContents()
         range.insertNode(this.root)
     }
+    get vdom() {
+        return this
+    }
 }
 
 export class Component {
@@ -102,19 +113,19 @@ export class Component {
         return this.constructor.name
     }
     update() {
-        let vdom = this.render()
-        if (this.vdom) {
+        let vdom = this.vdom
+        if (this.oldVdom) {
             // console.log(vnode)
             let isSameNode = (node1, node2) => {
                 if (node1.type !== node2.type) return false
                 for (let name in node1.props) {
-                    if (
-                        typeof node1.props[name] === 'function' && 
-                        typeof node2.props[name] === 'function' &&
-                        node1.props[name].toString() === node2.props[name].toString()
-                    ) {
-                        continue
-                    }
+                    // if (
+                    //     typeof node1.props[name] === 'function' && 
+                    //     typeof node2.props[name] === 'function' &&
+                    //     node1.props[name].toString() === node2.props[name].toString()
+                    // ) {
+                    //     continue
+                    // }
                     if (
                         typeof node1.props[name] === 'object' && 
                         typeof node2.props[name] === 'object' &&
@@ -150,11 +161,11 @@ export class Component {
                     }
                 }
             }
-            replace(vdom, this.vdom)
+            replace(vdom, this.oldVdom, '')
         } else {
             vdom.mountTo(this.range)
         }
-        this.vdom = vdom
+        this.oldVdom = vdom
     }
     setAttribute(name, value) {
         this.props[name] = value
